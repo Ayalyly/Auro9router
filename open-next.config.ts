@@ -1,7 +1,3 @@
 import { defineCloudflareConfig } from "@opennextjs/cloudflare";
 
-export default defineCloudflareConfig({
-  middleware: {
-    external: ["bun:sqlite"],
-  },
-});
+export default defineCloudflareConfig({});

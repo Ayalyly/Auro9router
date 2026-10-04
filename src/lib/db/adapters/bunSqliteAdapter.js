@@ -5,8 +5,11 @@ import { PRAGMA_SQL } from "../schema.js";
 const CHECKPOINT_INTERVAL_MS = 60 * 1000;
 
 export async function createBunSqliteAdapter(filePath) {
-  // Dynamic import — only resolves under Bun runtime
-  const { Database } = await import("bun:sqlite");
+  // Keep the Bun-only builtin out of Next/OpenNext middleware bundles.
+  // The specifier is assembled at runtime so Cloudflare Workers never tries
+  // to resolve bun:sqlite during its bundle step.
+  const bunSqliteSpecifier = ["bun", "sqlite"].join(":");
+  const { Database } = await import(bunSqliteSpecifier);
   const db = new Database(filePath, { create: true });
   db.exec(PRAGMA_SQL);
 
@@ -49,7 +52,6 @@ export async function createBunSqliteAdapter(filePath) {
     },
     exec(sql) { return db.exec(sql); },
     transaction(fn) {
-      // bun:sqlite has db.transaction() API (similar to better-sqlite3)
       const tx = db.transaction(fn);
       return tx();
     },

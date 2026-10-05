@@ -50,7 +50,8 @@
     "sql.js": "^1.14.1",
     "undici": "^7.19.2",
     "uuid": "^13.0.0",
-    "zustand": "^5.0.10"
+    "zustand": "^5.0.10",
+    "@cloudflare/containers": "^0.3.7"
   },
   "optionalDependencies": {
     "better-sqlite3": "^12.6.2"

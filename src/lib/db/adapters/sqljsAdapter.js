@@ -1,8 +1,10 @@
-import fs from "node:fs";
 import initSqlJs from "sql.js";
 import { PRAGMA_SQL } from "../schema.js";
 
 let SQL = null;
+
+const isWorkers = () => typeof globalThis.navigator !== "undefined" &&
+  /Cloudflare-Workers/i.test(globalThis.navigator.userAgent || "");
 
 async function loadSql() {
   if (SQL) return SQL;
@@ -12,22 +14,28 @@ async function loadSql() {
 
 export async function createSqlJsAdapter(filePath) {
   const SQLLib = await loadSql();
-  const buf = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
+  let fs = null;
+  if (!isWorkers()) {
+    try { fs = (await import("node:fs")).default; } catch {}
+  }
+
+  const buf = fs && fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
   const db = new SQLLib.Database(buf);
   db.exec(PRAGMA_SQL);
-  // Schema is created/synced by migrate.js after adapter init
 
   let dirty = false;
   let saveTimer = null;
   const SAVE_DEBOUNCE_MS = 100;
 
   function persist() {
+    if (!fs) return;
     const data = db.export();
     fs.writeFileSync(filePath, Buffer.from(data));
     dirty = false;
   }
 
   function scheduleSave() {
+    if (!fs) return;
     dirty = true;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -52,9 +60,7 @@ export async function createSqlJsAdapter(filePath) {
       const lastInsertRowid = db.exec("SELECT last_insert_rowid() as id")[0]?.values?.[0]?.[0] ?? null;
       scheduleSave();
       return { changes, lastInsertRowid };
-    } finally {
-      stmt.free();
-    }
+    } finally { stmt.free(); }
   }
 
   function get(sql, params = []) {
@@ -63,9 +69,7 @@ export async function createSqlJsAdapter(filePath) {
       stmt.bind(paramsObj(params));
       if (stmt.step()) return stmt.getAsObject();
       return undefined;
-    } finally {
-      stmt.free();
-    }
+    } finally { stmt.free(); }
   }
 
   function all(sql, params = []) {
@@ -75,9 +79,7 @@ export async function createSqlJsAdapter(filePath) {
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
       return rows;
-    } finally {
-      stmt.free();
-    }
+    } finally { stmt.free(); }
   }
 
   function exec(sql) {
@@ -105,11 +107,12 @@ export async function createSqlJsAdapter(filePath) {
     db.close();
   }
 
-  // Flush on shutdown
-  const flush = () => { if (dirty) try { persist(); } catch {} };
-  process.on("beforeExit", flush);
-  process.on("SIGINT", flush);
-  process.on("SIGTERM", flush);
+  if (fs && typeof process !== "undefined" && process?.on) {
+    const flush = () => { if (dirty) try { persist(); } catch {} };
+    process.on("beforeExit", flush);
+    process.on("SIGINT", flush);
+    process.on("SIGTERM", flush);
+  }
 
-  return { driver: "sql.js", run, get, all, exec, transaction, close, raw: db };
+  return { driver: fs ? "sql.js" : "sql.js-memory", run, get, all, exec, transaction, close, raw: db };
 }

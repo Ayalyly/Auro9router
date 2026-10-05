@@ -1,15 +1,31 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "auro9router",
-  "workers_dev": true,
-  "main": ".open-next/worker.js",
-  "compatibility_date": "2026-10-01",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-05",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
   "observability": {
     "enabled": true
-  }
+  },
+  "containers": [
+    {
+      "class_name": "MyContainer",
+      "image": "./Dockerfile",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "MyContainer",
+        "name": "MY_CONTAINER"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": ["MyContainer"],
+      "tag": "v1"
+    }
+  ]
 }

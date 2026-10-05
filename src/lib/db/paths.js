@@ -1,5 +1,4 @@
 import path from "node:path";
-import fs from "node:fs";
 import { DATA_DIR } from "@/lib/dataDir.js";
 
 export const DB_DIR = path.join(DATA_DIR, "db");
@@ -11,8 +10,16 @@ export const LEGACY_FILES = {
   disabled: path.join(DATA_DIR, "disabledModels.json"),
   details: path.join(DATA_DIR, "request-details.json"),
 };
+
+const isWorkers = () => typeof globalThis.navigator !== "undefined" &&
+  /Cloudflare-Workers/i.test(globalThis.navigator.userAgent || "");
+
 export function ensureDirs() {
-  for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  }
+  if (isWorkers()) return;
+  // Load filesystem only on Node/Bun. Workers have no persistent local filesystem.
+  return import("node:fs").then(({ default: fs }) => {
+    for (const dir of [DATA_DIR, DB_DIR, BACKUPS_DIR]) {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    }
+  });
 }
